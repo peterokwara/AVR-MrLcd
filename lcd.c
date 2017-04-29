@@ -1,86 +1,102 @@
-#define F_CPU 1000000L // Define the speed of the microcontroller
+#define F_CPU 16000000UL
 
 #include <avr/io.h>
 #include <util/delay.h>
 
-#define LCD_DPRT PORTD    //Lcd data port
-#define LCD_DDDR DDRD     //Lcd data DDR
-#define LCD_DPIN PIND     //Lcd data pin
-#define LCD_CPRT PORTD    //Lcd commands port
-#define LCD_CDDR DDRD     //Lcd commands ddr
-#define LCD_CPIN PIND     //Lcd commands pin
-#define LCD_RS 0          //Lcd rs
-#define LCD_RW 1          //Lcd rw
-#define LCD_EN 2          //Lcd en
+#define ctrl PORTD  // We are using port D
+#define en 2        // enable signal pin 2
+#define rw 1        // read/write signal pin 1
+#define rs 0        // register select signal pin 0
 
-void delay_us(int d){
-  while(d--){
-    _delay_us(1);
-  }
-}
+void lcd_command(unsigned char cmd);
+void lcd_init(void);
+void lcd_data(unsigned char data);
+void lcdCommand(char);
+void lcdData(char);
+void lcd_print(unsigned char *str);
+void lcd_gotoxy(unsigned char x, unsigned char y);
 
-void lcdCommand(unsigned char cmnd){
-  LCD_DPRT = cmnd & 0xF0;          //Send high nibble to D4-D7
-  LCD_CPRT &= ~ (1 << LCD_RS);    //RS = 0 for command
-  LCD_CPRT &= ~ (1 << LCD_RW);    //RW = 0 for write
-  LCD_CPRT |= (1 << LCD_EN);      //EN = 1 for H to L pulse
-  delay_us(1);                    //Make EN pulse wider
-  LCD_CPRT &= ~ (1 << LCD_EN);    //Make EN pulse wider
-  delay_us(100);                  //Wait
-  LCD_DPRT = cmnd << 4;           //Send low nibble to D4-D7
-  LCD_CPRT |= (1 << LCD_EN);      //EN = 1 for H-to-L pulse
-  delay_us(1);                    //Make EN pulse wider
-  LCD_CPRT &= ~ (1 << LCD_EN);    //EN = 0 for H-to-L pulse
-  delay_us(100);                  //Wait
-}
-
-void lcdData(unsigned char data){
-  LCD_DPRT = data & 0xF0;          //Send high nibble to D4-D7
-  LCD_CPRT |= (1 << LCD_RS);
-  LCD_CPRT &= ~ (1 << LCD_RW);    //RW = 0 for write
-  LCD_CPRT |= (1 << LCD_EN);      //EN = 1 for H to L pulse
-  delay_us(1);
-  LCD_CPRT &= ~ (1 << LCD_EN);    //EN = 0 for H-to-L pulse
-  LCD_DPRT = data << 4;           //Send low nibble to D4-D7
-  LCD_CPRT |= (1 << LCD_EN);      //EN = 1 for H-to-L pulse
-  delay_us(1);
-  LCD_CPRT &= ~ (1 << LCD_EN);    //EN = 0 for H-to-L pulse
-  delay_us(100);
-}
-
-void lcd_init(){
-  LCD_DDDR = 0xFF;
-  LCD_CDDR = 0xFF;
-  LCD_CPRT &= ~ (1 << LCD_EN);    //LCD_EN = 0
-  lcdCommand(0x33);               //Send $33 for init
-  lcdCommand(0x32);               //Send $32 for init
-  lcdCommand(0x28);               //Init LCD line, 5X7  matrix
-  lcdCommand(0x0e);               //Display on, cursor on
-  lcdCommand(0x01);               //Clear LCD
-  delay_us(2000);
-  lcdCommand(0x06);               //Shift cursor right
-}
-
-void lcd_gotoxy(unsigned char x, unsigned char y){
-  unsigned char firstCharAdr[] ={0x80, 0xC0, 0x94, 0xD4};
-  lcdCommand(firstCharAdr[y-1] + x - 1);
-  delay_us(100);
-}
-
-void lcd_print(char * str){
-  unsigned char i = 0;
-  while(str[i] !=0){
-    lcdData(str[i]);
-    i++;
-  }
-}
-
-int main(void){
-  lcd_init();
-  lcd_gotoxy(1,1);
-  lcd_print("These violent delghts");
-  lcd_gotoxy(1,2);
-  lcd_print("Have violent ends");
+int main(){
+  DDRD=0xFF;                        // Setting DDRD to output                                                                      // setting for port D
+  lcd_init();                       // initialization of LCD function
+  _delay_ms(30);
+  lcd_gotoxy(1,1);                  // Go to the location 1,1 of lcd
+  lcd_print("Hello world");         // Print the text
+  lcd_gotoxy(1,2);                  // Go to the location 1,2 of lcd
+  lcd_print("DNA DNA DNA DNA");     // Print the text
   while(1);
   return 0;
+}
+
+// Function moving to a given position on the LCD screen
+void lcd_gotoxy(unsigned char x, unsigned char y){
+  unsigned char firstCharAdr[] = {0x80, 0xC0, 0x94, 0xD4};
+  lcdCommand(firstCharAdr[y-1] + x - 1);
+  _delay_ms(0.1);
+}
+
+void lcd_init(void){
+  lcdCommand(0x02);     // To initialize LCD in 4-bit mode.
+  _delay_ms(1);
+  lcdCommand(0x28);     // To initialize LCD in 2 lines, 5X7 dots and 4bit mode.
+  _delay_ms(1);
+  lcdCommand(0x01);     // Clear LCD
+  _delay_ms(1);
+  lcdCommand(0x0E);     // Turn on cursor ON
+  _delay_ms(1);
+  lcdCommand(0x80);     // —8 go to first line and –0 is for 0th position
+  _delay_ms(1);
+  return;
+}
+
+ void lcdCommand(char cmd_value)
+ {
+    char cmd_value1;
+    cmd_value1 = cmd_value & 0xF0;    // Mask lower nibble
+                                      // because PD4-PD7 pins are used.
+    lcd_command(cmd_value1);      // Send to LCD
+    cmd_value1 = ((cmd_value<<4) & 0xF0);     // Shift 4-bit and mask
+    lcd_command(cmd_value1);                  // Send to LCD
+ }
+
+ void lcdData(char data_value)
+ {
+      char data_value1;
+      data_value1=data_value & 0xF0;    // Mask lower nibble
+      lcd_data(data_value1);            // because PD4-PD7 pins are used.
+      data_value1=((data_value<<4) & 0xF0);   // Shift 4-bit and mask
+      lcd_data(data_value1);                  // Send to LCD
+ }
+
+void lcd_command(unsigned char cmd)
+{
+  ctrl=cmd;
+  ctrl&=~(1<<rs);   // RS = 0 for command
+  ctrl&=~(1<<rw);   // RW = 0 for write
+  ctrl|=(1<<en);    // EN = 1 for High to Low pulse
+  _delay_ms(1);
+  ctrl&=~(1<<en);   // EN = 0 for High to Low pulse
+  _delay_ms(40);
+  return;
+}
+
+void lcd_data(unsigned char data)
+{
+   ctrl= data;
+   ctrl|=(1<<rs);   // RS = 1 for data
+   ctrl&=~(1<<rw);  // RW = 0 for write
+   ctrl|=(1<<en);   // EN = 1 for High to Low pulse
+   _delay_ms(1);
+   ctrl&=~(1<<en);  // EN = 0 for High to Low Pulse
+   _delay_ms(40);
+   return;
+}
+
+void lcd_print(unsigned char *str){  //store address value of the string in pointer *str
+  int i=0;
+  while(str[i]!='\0'){              // loop will go on till the NULL character in the string
+    lcdData(str[i]);                // sending data on LCD byte by byte
+    i++;
+  }
+  return;
 }
